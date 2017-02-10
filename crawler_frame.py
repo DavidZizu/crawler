@@ -77,7 +77,7 @@ class CrawlerFrame(IApplication):
     def shutdown(self):
         print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
         print "number of invalid links received from the frontier: ", num_invalid_links_from_frontier
-        print "number of urls retrieved: "
+        print "number of urls retrieved: ", num_urls_retrieved
         print "url with max number links: [", max_links[0], ": ", max_links[1], "]"
 
         subdomain_file = open("subdomain", 'a')                 #open file subdomain to write all the retrieved links to a file
