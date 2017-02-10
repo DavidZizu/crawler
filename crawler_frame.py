@@ -2,15 +2,12 @@ import logging
 from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_manager
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
-from lxml import html,etree
+#from lxml import html,etree
 import re, os
 from time import time
-
-from io import StringIO
-from bs4 import BeautifulSoup
-
-import urllib2
 import collections
+import urllib2
+from bs4 import BeautifulSoup
 
 import sys
 reload(sys)
@@ -26,27 +23,18 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 LOG_HEADER = "[CRAWLER]"
-url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
-if url_count < 0:
-    url_count = 0
-MAX_LINKS_TO_DOWNLOAD = 1000
+url_count = (set() 
+    if not os.path.exists("successful_urls.txt") else 
+    set([line.strip() for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
+MAX_LINKS_TO_DOWNLOAD = 100
 
-#dictionary to keep all the travesed urls and number of times we got a ceratin url
-crawled_urls = {}
-#dictionary to keep all the urls associated with the given subdomain
-urls_by_subdomain = collections.defaultdict(list)
-#max number of urls retrieved from a web page
-max_links = ("none", 0)
+crawled_urls = {}                                   #dictionary to keep all the travesed urls and number of times we got a ceratin url
+urls_by_subdomain = collections.defaultdict(list)   #dictionary to keep all the urls associated with the given subdomain
+max_links = ("none", 0)                             #max number of urls retrieved from a web page
 
 num_url_retrieved = 0 if not os.path.exists("subdomain") else (len(open("subdomain").readlines()) - 1)                       #count number of links retrieved from web pages
-num_invalid_links_from_frontier = 0 if not os.path.exists("invalid_links") else (len(open("invalid_links").readlines()) - 1)          #count number of invalid urls received from the frontier                           
-
-'''
-invalid_links = open("invalid_links", 'a')
-subdomain_file = open("subdomain", 'a')
-stats = open("stats", 'w')
-duplicate_links = open("duplicates", "w")
-'''
+num_invalid_links_from_frontier = 0 if not os.path.exists("invalid_links") else (len(open("invalid_links").readlines()) - 1)          #count number of invalid urls received from the frontier
+num_urls_retrieved = 0
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
@@ -55,15 +43,15 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "14056861_54037979"
+        self.app_id = "123455"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "IR W17 UnderGrad 14056861, 54037979"
-		
+        self.UserAgentString = "MONDEGO TEST"
+        
         self.frame = frame
         assert(self.UserAgentString != None)
         assert(self.app_id != "")
-        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+        if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
             self.done = True
 
     def initialize(self):
@@ -75,79 +63,129 @@ class CrawlerFrame(IApplication):
     def update(self):
         for g in self.frame.get(OneUnProcessedGroup):
             print "Got a Group"
-            outputLinks = process_url_group(g, self.UserAgentString)
+            outputLinks, urlResps = process_url_group(g, self.UserAgentString)
+            for urlResp in urlResps:
+                if urlResp.bad_url and self.UserAgentString not in set(urlResp.dataframe_obj.bad_url):
+                    urlResp.dataframe_obj.bad_url += [self.UserAgentString]
             for l in outputLinks:
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
-        if url_count >= MAX_LINKS_TO_DOWNLOAD:
+        if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
             self.done = True
 
     def shutdown(self):
-        print "downloaded ", url_count, " in ", time() - self.starttime, " seconds."
-        print "number of URLs retrieved: ", num_url_retrieved, \
-        "; number of invalid links received from the frontier: ", num_invalid_links_from_frontier
+        print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
+        print "number of invalid links received from the frontier: ", num_invalid_links_from_frontier
+        print "number of urls retrieved: "
         print "url with max number links: [", max_links[0], ": ", max_links[1], "]"
 
         subdomain_file = open("subdomain", 'a')                 #open file subdomain to write all the retrieved links to a file
         for subdomain in urls_by_subdomain:
             subdomain_file.write(subdomain + ": ")
             for url in urls_by_subdomain[subdomain]:
-                subdomain_file.write("\t" + url)
-
-
+                subdomain_file.write("\t" + url + "\n")
         pass
 
 def save_count(urls):
     global url_count
-    url_count += len(urls)
-    print "URLs: ", urls
+    url_count.update(set(urls))
     with open("successful_urls.txt", "a") as surls:
         if urls:
-            surls.write("\n".join(urls) + "\n")
-        #else:
-        #    surls.write("\nFFFFFFFF" + "\n")
+            surls.write(("\n".join(urls) + "\n").encode("utf-8"))
 
 def process_url_group(group, useragentstr):
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
     save_count(successfull_urls)
-    return extract_next_links(rawDatas)
+    return extract_next_links(rawDatas), rawDatas
     
 #######################################################################################
 '''
 STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
 def extract_next_links(rawDatas):
-    outputLinks = list()
+    global num_invalid_links_from_frontier
     global num_url_retrieved
     global crawled_urls
     global urls_by_subdomain
     global max_links
+    global num_urls_retrieved
+
+    outputLinks = list()
     '''
-    rawDatas is a list of tuples -> [(url1, raw_content1), (url2, raw_content2), ....]
+    rawDatas is a list of objs -> [raw_content_obj1, raw_content_obj2, ....]
+    Each obj is of type UrlResponse  declared at L28-42 datamodel/search/datamodel.py
     the return of this function should be a list of urls in their absolute form
     Validation of link via is_valid function is done later (see line 42).
     It is not required to remove duplicates that have already been downloaded. 
     The frontier takes care of that.
 
     Suggested library: lxml
-
-
-    why there are blank line in successfull_urls.txt when we actually received an URL
-    it seems that successfull urls contain only valid but rawDatas doesn't
-    ask about the error, photo on iPhone
-
     '''
+
+    #flamingo, ironwood
 
     print "\n---------------------------------------------------------------\n"
 
-    for i,j in enumerate(rawDatas):
-        current_link = j[0]                         #get the current link
+    group_num = 0
+    for url_object in rawDatas:
+        print "Group ", group_num + 1
+        print "URL         : ", url_object.url
+        print "Error msg   : ", url_object.error_message
+        print "Header      : ", url_object.headers
+        print "HTTP code   : ", url_object.http_code
+        print "Redirected? : ", url_object.is_redirected
+        print "Final URL   : ", url_object.final_url
+        group_num += 1
 
-        #check if such link (j[0]) actually exists
-        #if not, go to the next one
+        #check if the url is redirected
+        if url_object.is_redirected:
+            url_from_frontier = url_object.final_url            #if so, get the final url (destination)
+        else:
+            url_from_frontier = url_object.url                  #if not, take the url given by the frontier
+
+        #check if the given url from frontier is invalid (doesn't exist)
+        if len(url_object.http_code) < 4 and int(url_object.http_code[0]) == 4:
+            num_invalid_links_from_frontier += 1
+            url_object.bad_url = True
+            print "INVALID URL"
+            continue
+
+        #check if the link from the frontier was already crawled
+        if url_from_frontier not in crawled_urls:
+            crawled_urls[url_from_frontier] = 1
+        else:                                               #there is no point to traverse the url that we already visited
+            crawled_urls[url_from_frontier] += 1
+            continue
+
+        #get the subdomain of the url
+        url_from_frontier_parsed = urlparse(url_from_frontier)              #parse the url
+        subdomain = url_from_frontier_parsed.hostname.split('.')                   #split the hostname of the link by "."
+        if subdomain[0] != "www":                               
+            subdomain = subdomain[0]                            #get the subdomain
+        else:
+            subdomain = subdomain[1]                            #get the subdomain
+
+
+        soup = BeautifulSoup(url_object.content, "lxml")                      #crawl the content of the downloaded web page
+        num_links = 0                                           #count the number of links in this web page
+        for link in soup.findAll('a'):                          #get all links
+            next_link = link.get('href')                        #get all links
+            new_link = urljoin(url_from_frontier, next_link)         #get the absolute form of the link
+            if is_valid(new_link, False):                       #save only valid urls (increment the counter of retrieved link only if the given link is valid)
+                num_urls_retrieved += 1                              #increment the counter of the retrieved links
+                num_links += 1
+                urls_by_subdomain[subdomain].append(new_link)
+                outputLinks.append(new_link)                        #insert a link in the absolute form to the outputLinks list
+
+        #if the number of links retrieved from a given page is more than max number we have, then update the url and max links
+        if max_links[1] < num_links:                                
+            max_links = (url_from_frontier, num_links)
+
+        '''
+        #check if the url actually
         try:
-            if not urllib2.urlopen(j[0]):               #check if the link j[0] exist
+            if not urllib2.urlopen(j[0]):              
                 continue
         except urllib2.HTTPError, e:
             print e.code 
@@ -155,48 +193,10 @@ def extract_next_links(rawDatas):
         except urllib2.URLError, e:
             print e.args
             continue
-
-        print i + 1
-
-        if current_link not in crawled_urls:
-            crawled_urls[current_link] = 1
-        else:                                               #there is no point to traverse the url that we already visited
-            crawled_urls[current_link] += 1
-            #duplicate_links.write(current_link + "\n")
-            continue
-
-        #get the subdomain
-        current_link_parsed = urlparse(current_link)            #parse the link
-        subdomain = current_link_parsed.hostname.split('.')     #split the hostname of the link by "." to get the subdomain
-        if subdomain[0] != "www":                               
-            subdomain = subdomain[0]                            #get the subdomain
-            #subdomain_file.write(subdomain[0] + " " + current_link + ":\n")          #write a subdomain to the file
-        else:
-            subdomain = subdomain[1]                            #get the subdomain
-            #subdomain_file.write(subdomain[1] + " " + current_link + ":\n")          #write a subdomain to the file
-
-        print current_link                                      #print the current link which is being crawled
-        soup = BeautifulSoup(j[1], "lxml")                      #parse the content of the web page
-        num_links = 0
-        for link in soup.findAll('a'):                          #get links
-            next_link = link.get('href')                        #get links
-            new_link = urljoin(current_link, next_link)         #get the absolute form of the link
-
-            #subdomain_file.write("\t" + str(new_link) + "\n")   #write the link in the absolute form to the file
-            #stats.write("Retrieved: " + str(num_url_retrieved) + "\n")
-
-            #save only valid urls (increment the counter of retrieved link only if the given link is valid)
-            if is_valid(new_link, False):
-                num_url_retrieved += 1                              #increment the counter of the retrieved links
-                num_links += 1
-                urls_by_subdomain[subdomain].append(new_link)
-                outputLinks.append(new_link)                        #insert a link in the absolute form to the outputLinks list
-
-        #if the number of links retrieved from a given page is more than max number we have, then update the url and max links
-        if max_links[1] < num_links:                                
-            max_links = (current_link, num_links)
-
+        '''
     print "\n---------------------------------------------------------------\n"
+
+
 
     return outputLinks
 
@@ -211,10 +211,8 @@ def is_valid(url, frontier = True):
     parsed = urlparse(url)
     if parsed.scheme not in set(["http", "https"]):
         #check if the function is called when we traverse a web page or when we received an url from the frontier
-        if not frontier:
+        if frontier:
             num_invalid_links_from_frontier += 1                #increment the number of invalid links
-            #invalid_links.write(url + "\n")                     #write an invalid link to the file
-            #stats.write("Invalid: " + str(num_invalid_links_from_frontier) + "\n")
         return False
     try:
         if ".ics.uci.edu" in parsed.hostname \
@@ -227,10 +225,8 @@ def is_valid(url, frontier = True):
             and not parsed.query:
             return True
         else:
-            if not frontier:
+            if frontier:
                 num_invalid_links_from_frontier += 1                #increment the number of invalid links
-                #invalid_links.write(url + "\n")                 #write an invalid link to the file
-                #stats.write("Invalid: " + str(num_invalid_links_from_frontier) + "\n")
             return False
 
     except TypeError:
