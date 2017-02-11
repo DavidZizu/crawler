@@ -96,7 +96,9 @@ class CrawlerFrame(IApplication):
                 num_urls_by_subdomain[subdomain] += 1
                 subdomain_file.write("\t" + url + "\n")
 
+        num_urls_by_subdomain_file = open("num_urls_retrieved_from_subdomains", 'a')
         for url in num_urls_by_subdomain:
+            num_urls_by_subdomain_file.write(url, ": ", num_urls_by_subdomain[url])
             print url, ": ", num_urls_by_subdomain[url]
 
         invalid_links_file = open("invalid_links", "a")
