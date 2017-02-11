@@ -103,7 +103,7 @@ class CrawlerFrame(IApplication):
         for url in debug_urls:
             debug_file.write(url + ":\n")
             for retrieved_urls in debug_urls[url]:
-                debug_file.write(retrieved_urls + "\n")
+                debug_file.write("\t" + retrieved_urls + "\n")
 
         pass
 
