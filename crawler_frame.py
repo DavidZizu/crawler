@@ -32,14 +32,14 @@ crawled_urls = {}                                   #dictionary to keep all the 
 invalid_links = []                                  #list of invalid links received from the frontier
 urls_by_subdomain = collections.defaultdict(list)   #dictionary to keep all the urls associated with the given subdomain
 max_links = ("none", 0)                             #max number of urls retrieved from a web page
-ave_time = []
+ave_time = []                                       #store time of each download to calculate the average time at the end
 
 #for debug purpose: list of urls taken from the frontier and urls retrieved from this pages
 debug_urls = collections.defaultdict(list)
 
 num_url_retrieved = 0 if not os.path.exists("subdomain") else (len(open("subdomain").readlines()) - 1)                       #count number of links retrieved from web pages
 num_invalid_links_from_frontier = 0 if not os.path.exists("invalid_links") else (len(open("invalid_links").readlines()) - 1)          #count number of invalid urls received from the frontier
-num_urls_retrieved = 0
+num_urls_retrieved = 0                              #numbers of valid urls retrieved from the crawled pages
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
@@ -86,11 +86,18 @@ class CrawlerFrame(IApplication):
         print "url with max number links: [", max_links[0], ": ", max_links[1], "]"
         print "average download time: ", sum([download_time for download_time in ave_time]) / len(ave_time), "s"
 
+        num_urls_by_subdomain = {}
+
         subdomain_file = open("subdomain", 'a')                 #open file subdomain to write all the retrieved links to a file
         for subdomain in urls_by_subdomain:
             subdomain_file.write(subdomain + ": " + "\n")
+            num_urls_by_subdomain[subdomain] = 0                                  #count number of urls retrieved for each subdomain
             for url in urls_by_subdomain[subdomain]:
+                num_urls_by_subdomain[subdomain] += 1
                 subdomain_file.write("\t" + url + "\n")
+
+        for url in num_urls_by_subdomain:
+            print url, ": ", num_urls_by_subdomain[url]
 
         invalid_links_file = open("invalid_links", "a")
         [invalid_links_file.write(url + "\n") for url in invalid_links]
@@ -257,6 +264,7 @@ def is_valid(url, frontier = True):
             + "|thmx|mso|arff|rtf|jar|csv" \
             + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
             + "|php|php.*|java)$", parsed.path.lower()) \
+            and not re.match("^htt.*(http:/|https:/).*$", url) \
             and not re.match("calendar", parsed.hostname) \
             and not re.match("ganglia", parsed.hostname) \
             and not re.match("archive", parsed.hostname) \
