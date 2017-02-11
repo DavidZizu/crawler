@@ -91,6 +91,9 @@ class CrawlerFrame(IApplication):
 
         invalid_links_file = open("invalid_links", "a")
         [invalid_links_file.write(url + "\n") for url in invalid_links]
+
+        duplicates_file = open("duplicate_urls", "a")
+        [duplicates_file.write(url + ": " + str(crawled_urls[url]) + "\n") for url in crawled_urls if crawled_urls[url] > 1]
         pass
 
 def save_count(urls):
@@ -183,6 +186,8 @@ def extract_next_links(rawDatas):
         else:
             subdomain = subdomain[1]                            #get the subdomain
 
+        #for debugging purposes include the web page url
+        #urls_by_subdomain[subdomain].append()
 
         soup = BeautifulSoup(url_object.content, "lxml")                      #crawl the content of the downloaded web page
         num_links = 0                                           #count the number of links in this web page
@@ -192,7 +197,7 @@ def extract_next_links(rawDatas):
             if is_valid(new_link, False):                       #save only valid urls (increment the counter of retrieved link only if the given link is valid)
                 num_urls_retrieved += 1                              #increment the counter of the retrieved links
                 num_links += 1
-                urls_by_subdomain[subdomain].append(new_link)
+                urls_by_subdomain[url_from_frontier].append(new_link)
                 outputLinks.append(new_link)                        #insert a link in the absolute form to the outputLinks list
 
         #if the number of links retrieved from a given page is more than max number we have, then update the url and max links
@@ -239,11 +244,11 @@ def is_valid(url, frontier = True):
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv" \
             + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
-            + "|php|php.*)" + ")$", parsed.path.lower()) \
-            and not re.match("calendar\..*$", parsed.hostname) \
-            and not re.match("ganglia\..*$", parsed.hostname) \
-            and not re.match("archive", parsed.path.lower()) \
-            and not re.match("seraja", parsed.path.lower()) \
+            + "|php|php.*|java)$", parsed.path.lower()) \
+            and not re.match("calendar", parsed.hostname) \
+            and not re.match("ganglia", parsed.hostname) \
+            and not re.match("archive", parsed.hostname) \
+            and not re.match("seraja", parsed.hostname) \
             and not re.match(".*ics.uci.edu/~develop/.*$", url) \
             and not re.match(".*ics.uci.edu/~mlearn/.*$", url) \
             and not parsed.query:
