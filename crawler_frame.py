@@ -26,11 +26,13 @@ LOG_HEADER = "[CRAWLER]"
 url_count = (set() 
     if not os.path.exists("successful_urls.txt") else 
     set([line.strip() for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
-MAX_LINKS_TO_DOWNLOAD = 100
+MAX_LINKS_TO_DOWNLOAD = 10
 
 crawled_urls = {}                                   #dictionary to keep all the travesed urls and number of times we got a ceratin url
+invalid_links = []                                  #list of invalid links received from the frontier
 urls_by_subdomain = collections.defaultdict(list)   #dictionary to keep all the urls associated with the given subdomain
 max_links = ("none", 0)                             #max number of urls retrieved from a web page
+ave_time = []
 
 num_url_retrieved = 0 if not os.path.exists("subdomain") else (len(open("subdomain").readlines()) - 1)                       #count number of links retrieved from web pages
 num_invalid_links_from_frontier = 0 if not os.path.exists("invalid_links") else (len(open("invalid_links").readlines()) - 1)          #count number of invalid urls received from the frontier
@@ -43,10 +45,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "123455"
+        self.app_id = "1111111111"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "MONDEGO TEST"
+        self.UserAgentString = "something"
         
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -79,23 +81,37 @@ class CrawlerFrame(IApplication):
         print "number of invalid links received from the frontier: ", num_invalid_links_from_frontier
         print "number of urls retrieved: ", num_urls_retrieved
         print "url with max number links: [", max_links[0], ": ", max_links[1], "]"
+        print "average download time: ", sum([download_time for download_time in ave_time]) / len(ave_time), "s"
 
         subdomain_file = open("subdomain", 'a')                 #open file subdomain to write all the retrieved links to a file
         for subdomain in urls_by_subdomain:
-            subdomain_file.write(subdomain + ": ")
+            subdomain_file.write(subdomain + ": " + "\n")
             for url in urls_by_subdomain[subdomain]:
                 subdomain_file.write("\t" + url + "\n")
+
+        invalid_links_file = open("invalid_links", "a")
+        [invalid_links_file.write(url + "\n") for url in invalid_links]
         pass
 
 def save_count(urls):
     global url_count
-    url_count.update(set(urls))
+    urls = set(urls).difference(url_count)
+    url_count.update(urls)
+    if len(urls):
+        with open("successful_urls.txt", "a") as surls:
+            url_count.update(set(urls))
     with open("successful_urls.txt", "a") as surls:
         if urls:
             surls.write(("\n".join(urls) + "\n").encode("utf-8"))
 
 def process_url_group(group, useragentstr):
+    global ave_time
+    start = time()
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    end = time()
+    if len(rawDatas) != 0:
+        print "Time: ", (end - start) / len(rawDatas)
+        ave_time.append((end - start) / len(rawDatas)) 
     save_count(successfull_urls)
     return extract_next_links(rawDatas), rawDatas
     
@@ -145,9 +161,10 @@ def extract_next_links(rawDatas):
             url_from_frontier = url_object.url                  #if not, take the url given by the frontier
 
         #check if the given url from frontier is invalid (doesn't exist)
-        if len(url_object.http_code) < 4 and int(url_object.http_code[0]) == 4:
+        if str(url_object.http_code)[0] == 4:
             num_invalid_links_from_frontier += 1
             url_object.bad_url = True
+            invalid_links.append(url_from_frontier)
             print "INVALID URL"
             continue
 
@@ -213,6 +230,7 @@ def is_valid(url, frontier = True):
         #check if the function is called when we traverse a web page or when we received an url from the frontier
         if frontier:
             num_invalid_links_from_frontier += 1                #increment the number of invalid links
+            invalid_links.append(url)
         return False
     try:
         if ".ics.uci.edu" in parsed.hostname \
@@ -227,6 +245,7 @@ def is_valid(url, frontier = True):
         else:
             if frontier:
                 num_invalid_links_from_frontier += 1                #increment the number of invalid links
+                invalid_links.append(url)
             return False
 
     except TypeError:
