@@ -34,6 +34,9 @@ urls_by_subdomain = collections.defaultdict(list)   #dictionary to keep all the 
 max_links = ("none", 0)                             #max number of urls retrieved from a web page
 ave_time = []
 
+#for debug purpose: list of urls taken from the frontier and urls retrieved from this pages
+debug_urls = collections.defaultdict(list)
+
 num_url_retrieved = 0 if not os.path.exists("subdomain") else (len(open("subdomain").readlines()) - 1)                       #count number of links retrieved from web pages
 num_invalid_links_from_frontier = 0 if not os.path.exists("invalid_links") else (len(open("invalid_links").readlines()) - 1)          #count number of invalid urls received from the frontier
 num_urls_retrieved = 0
@@ -94,6 +97,14 @@ class CrawlerFrame(IApplication):
 
         duplicates_file = open("duplicate_urls", "a")
         [duplicates_file.write(url + ": " + str(crawled_urls[url]) + "\n") for url in crawled_urls if crawled_urls[url] > 1]
+
+        #FOR DEBUGGING
+        debug_file = open("debug_urls", "a")
+        for url in debug_urls:
+            debug_file.write(url + ":\n")
+            for retrieved_urls in debug_urls[url]:
+                debug_file.write(retrieved_urls + "\n")
+
         pass
 
 def save_count(urls):
@@ -129,6 +140,7 @@ def extract_next_links(rawDatas):
     global urls_by_subdomain
     global max_links
     global num_urls_retrieved
+    global debug_urls
 
     outputLinks = list()
     '''
@@ -186,9 +198,6 @@ def extract_next_links(rawDatas):
         else:
             subdomain = subdomain[1]                            #get the subdomain
 
-        #for debugging purposes include the web page url
-        #urls_by_subdomain[subdomain].append()
-
         soup = BeautifulSoup(url_object.content, "lxml")                      #crawl the content of the downloaded web page
         num_links = 0                                           #count the number of links in this web page
         for link in soup.findAll('a'):                          #get all links
@@ -197,8 +206,11 @@ def extract_next_links(rawDatas):
             if is_valid(new_link, False):                       #save only valid urls (increment the counter of retrieved link only if the given link is valid)
                 num_urls_retrieved += 1                              #increment the counter of the retrieved links
                 num_links += 1
-                urls_by_subdomain[url_from_frontier].append(new_link)
+                urls_by_subdomain[subdomain].append(new_link)
                 outputLinks.append(new_link)                        #insert a link in the absolute form to the outputLinks list
+
+                #for debugging purposes include the web page url
+                debug_urls[url_from_frontier].append(new_link)
 
         #if the number of links retrieved from a given page is more than max number we have, then update the url and max links
         if max_links[1] < num_links:                                
