@@ -98,7 +98,7 @@ class CrawlerFrame(IApplication):
 
         num_urls_by_subdomain_file = open("num_urls_retrieved_from_subdomains", 'a')
         for url in num_urls_by_subdomain:
-            num_urls_by_subdomain_file.write(url, ": ", num_urls_by_subdomain[url])
+            num_urls_by_subdomain_file.write(url + ": " + num_urls_by_subdomain[url])
             print url, ": ", num_urls_by_subdomain[url]
 
         invalid_links_file = open("invalid_links", "a")
@@ -273,6 +273,7 @@ def is_valid(url, frontier = True):
             and not re.match("seraja", parsed.hostname) \
             and not re.match(".*ics.uci.edu/~develop/.*$", url) \
             and not re.match(".*ics.uci.edu/~mlearn/.*$", url) \
+            and re.search("\.ics\.uci\.edu\.?$", parsed.hostname) \
             and not parsed.query:
             return True
         else:
