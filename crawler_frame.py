@@ -26,7 +26,7 @@ LOG_HEADER = "[CRAWLER]"
 url_count = (set() 
     if not os.path.exists("successful_urls.txt") else 
     set([line.strip() for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
-MAX_LINKS_TO_DOWNLOAD = 3000
+MAX_LINKS_TO_DOWNLOAD = 10000
 
 crawled_urls = {}                                   #dictionary to keep all the travesed urls and number of times we got a ceratin url
 invalid_links = []                                  #list of invalid links received from the frontier
@@ -48,10 +48,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "11111111311"
+        self.app_id = "14056861"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "someth2ing"
+        self.UserAgentString = "IR W17 Undergrad 14056861"
         
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -270,6 +270,8 @@ def is_valid(url, frontier = True):
             and not re.match("calendar", parsed.hostname) \
             and not re.match("ganglia", parsed.hostname) \
             and not re.match("archive", parsed.hostname) \
+            and not re.match("seraja", parsed.hostname) \
+            and not re.match("mlphysics", parsed.hostname) \
             and not re.match("seraja", parsed.hostname) \
             and not re.match(".*ics.uci.edu/~develop/.*$", url) \
             and not re.match(".*ics.uci.edu/~mlearn/.*$", url) \
