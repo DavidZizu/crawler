@@ -271,13 +271,27 @@ def is_valid(url, frontier = True):
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv" \
             + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
-            + "|php|php.*|java|h5)$", parsed.path.lower()) \
+            + "|php|php.*|java|h5|ss|ppsx)$", parsed.path.lower()) \
+            and not re.match(".*(contact/student-affairs|\~irus.*css|\~irus.*bart).*", parsed.path.lower()) \
+            and not re.match(".*@.*", parsed.path.lower()) \
             and not re.match("^htt.*(http:/|https:/).*$", url) \
             and not re.match(".*(calendar|ganglia|archive|mlphysics|seraja).*", parsed.hostname) \
             and not re.match(".*ics.uci.edu/~develop/.*$", url) \
             and not re.match(".*ics.uci.edu/~mlearn/.*$", url) \
             and re.search("\.ics\.uci\.edu\.?$", parsed.hostname) \
             and not parsed.query:
+            
+            #not sure how to match identical directories using regex
+            dup_dir = {}
+            for direct in parsed.path.split('/'):
+                if direct in dup_dir and direct != "":
+                    if frontier:
+                        num_invalid_links_from_frontier += 1                #increment the number of invalid links
+                        invalid_links.append(url)
+                    return False
+                else:
+                    dup_dir[direct] = 1
+
             return True
         else:
             if frontier:
