@@ -98,7 +98,7 @@ class CrawlerFrame(IApplication):
 
         num_urls_by_subdomain_file = open("num_urls_retrieved_from_subdomains", 'a')
         for url in num_urls_by_subdomain:
-            num_urls_by_subdomain_file.write(url + ": " + num_urls_by_subdomain[url])
+            num_urls_by_subdomain_file.write(url + ": " + str(num_urls_by_subdomain[url]) + "\n")
             print url, ": ", num_urls_by_subdomain[url]
 
         invalid_links_file = open("invalid_links", "a")
@@ -150,6 +150,8 @@ def extract_next_links(rawDatas):
     global max_links
     global num_urls_retrieved
     global debug_urls
+    global url_count
+    global MAX_LINKS_TO_DOWNLOAD
 
     outputLinks = list()
     '''
@@ -239,6 +241,10 @@ def extract_next_links(rawDatas):
         '''
     print "\n---------------------------------------------------------------\n"
 
+    #sys.stdout.write("Progress: %.2f%%   \r" %((int(len(url_count)) * 100) / MAX_LINKS_TO_DOWNLOAD) )
+    sys.stdout.write("Progress: %d   \r" %len(url_count) )
+    sys.stdout.flush()
+
 
 
     return outputLinks
@@ -265,14 +271,9 @@ def is_valid(url, frontier = True):
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv" \
             + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
-            + "|php|php.*|java)$", parsed.path.lower()) \
+            + "|php|php.*|java|h5)$", parsed.path.lower()) \
             and not re.match("^htt.*(http:/|https:/).*$", url) \
-            and not re.match("calendar", parsed.hostname) \
-            and not re.match("ganglia", parsed.hostname) \
-            and not re.match("archive", parsed.hostname) \
-            and not re.match("seraja", parsed.hostname) \
-            and not re.match("mlphysics", parsed.hostname) \
-            and not re.match("seraja", parsed.hostname) \
+            and not re.match(".*(calendar|ganglia|archive|mlphysics|seraja).*", parsed.hostname) \
             and not re.match(".*ics.uci.edu/~develop/.*$", url) \
             and not re.match(".*ics.uci.edu/~mlearn/.*$", url) \
             and re.search("\.ics\.uci\.edu\.?$", parsed.hostname) \
