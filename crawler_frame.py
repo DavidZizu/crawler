@@ -8,6 +8,8 @@ from time import time
 import collections
 import urllib2
 from bs4 import BeautifulSoup
+from datetime import datetime
+from time import strptime
 
 import sys
 reload(sys)
@@ -30,9 +32,11 @@ MAX_LINKS_TO_DOWNLOAD = 10000
 
 crawled_urls = {}                                   #dictionary to keep all the travesed urls and number of times we got a ceratin url
 invalid_links = []                                  #list of invalid links received from the frontier
-urls_by_subdomain = collections.defaultdict(list)   #dictionary to keep all the urls associated with the given subdomain
+urls_by_subdomain = collections.defaultdict()       #dictionary to keep all the urls associated with the given subdomain
 max_links = ("none", 0)                             #max number of urls retrieved from a web page
 ave_time = []                                       #store time of each download to calculate the average time at the end
+newest_update = ('none', datetime(1111, 11, 11, 11, 11, 11))  #store the newest file (modified based)
+oldest_update = ('none', datetime(9999, 11, 11, 11, 11, 11))  #store the oldest file (modified based)
 
 #for debug purpose: list of urls taken from the frontier and urls retrieved from this pages
 debug_urls = collections.defaultdict(list)
@@ -48,10 +52,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "14056861"
+        self.app_id = "14056861_23302581"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "IR W17 Undergrad 14056861"
+        self.UserAgentString = "IR W17 Undergrad 14056861, 23302581"
         
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -80,11 +84,15 @@ class CrawlerFrame(IApplication):
             self.done = True
 
     def shutdown(self):
+        print "\n---------------------------------------------------------------\n"
         print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
         print "number of invalid links received from the frontier: ", num_invalid_links_from_frontier
         print "number of urls retrieved: ", num_urls_retrieved
-        print "url with max number links: [", max_links[0], ": ", max_links[1], "]"
+        print "url with max number of out links: [", max_links[0], ": ", max_links[1], "]"
         print "average download time: ", sum([download_time for download_time in ave_time]) / len(ave_time), "s"
+        print "newest update: ", newest_update[0], " ", newest_update[1]
+        print "oldest update: ", oldest_update[0], " ", oldest_update[1]
+        print "\n---------------------------------------------------------------\n"
 
         num_urls_by_subdomain = {}
 
@@ -96,16 +104,29 @@ class CrawlerFrame(IApplication):
                 num_urls_by_subdomain[subdomain] += 1
                 subdomain_file.write("\t" + url + "\n")
 
+        #number of urls retrieved from each visited subdomain
         num_urls_by_subdomain_file = open("num_urls_retrieved_from_subdomains", 'a')
         for url in num_urls_by_subdomain:
             num_urls_by_subdomain_file.write(url + ": " + str(num_urls_by_subdomain[url]) + "\n")
             print url, ": ", num_urls_by_subdomain[url]
 
+        #store all the invalid links from the frontier
         invalid_links_file = open("invalid_links", "a")
         [invalid_links_file.write(url + "\n") for url in invalid_links]
 
+        #store all the duplicate links and their amount
         duplicates_file = open("duplicate_urls", "a")
         [duplicates_file.write(url + ": " + str(crawled_urls[url]) + "\n") for url in crawled_urls if crawled_urls[url] > 1]
+
+        #records other statistics
+        other_stats_file = open("other_stats", "a")
+        other_stats_file.write("Downloaded " + str(len(url_count)) + " in " + str(time() - self.starttime) + " seconds\n")
+        other_stats_file.write("Number of invalid links received from the frontier: " + str(num_invalid_links_from_frontier) + "\n")
+        other_stats_file.write("Number of URLs retrieved in total: " + str(num_urls_retrieved) + "\n")
+        other_stats_file.write("URL with max number of out links: [" + str(max_links[0]) + ": " + str(max_links[1]) + "]\n")
+        other_stats_file.write("Average download time per URL: " + str(sum([download_time for download_time in ave_time]) / len(ave_time)) + "seconds\n")
+        other_stats_file.write("URL that was most recently modified: " + str(newest_update[0]) + " " + str(newest_update[1]) + "\n")
+        other_stats_file.write("URL " + str(oldest_update[0]) + " wasn't modified since: " + str(oldest_update[1]) + "\n")
 
         #FOR DEBUGGING
         debug_file = open("debug_urls", "a")
@@ -152,6 +173,8 @@ def extract_next_links(rawDatas):
     global debug_urls
     global url_count
     global MAX_LINKS_TO_DOWNLOAD
+    global newest_update
+    global oldest_update
 
     outputLinks = list()
     '''
@@ -171,6 +194,8 @@ def extract_next_links(rawDatas):
 
     group_num = 0
     for url_object in rawDatas:
+        if group_num != 0:
+            print "\n"
         print "Group ", group_num + 1
         print "URL         : ", url_object.url
         print "Error msg   : ", url_object.error_message
@@ -187,12 +212,16 @@ def extract_next_links(rawDatas):
             url_from_frontier = url_object.url                  #if not, take the url given by the frontier
 
         #check if the given url from frontier is invalid (doesn't exist)
-        if str(url_object.http_code)[0] == 4:
+        if int(str(url_object.http_code)[0]) == 4:
             num_invalid_links_from_frontier += 1
             url_object.bad_url = True
             invalid_links.append(url_from_frontier)
-            print "INVALID URL"
+            print '\033[91m', "INVALID URL", '\033[0m'
             continue
+
+        #remove the last char if it is slash sign ("/")
+        if url_from_frontier[-1] == '/':
+            url_from_frontier = url_from_frontier[:-1]
 
         #check if the link from the frontier was already crawled
         if url_from_frontier not in crawled_urls:
@@ -200,6 +229,19 @@ def extract_next_links(rawDatas):
         else:                                               #there is no point to traverse the url that we already visited
             crawled_urls[url_from_frontier] += 1
             continue
+
+        #get the date when the URL was last modified
+        if 'Last-Modified' in url_object.headers:
+            split_date = url_object.headers['Last-Modified'].split(' ')         #split by " " to get each parameter imdependently
+            split_time = split_date[4].split(':')                              #split time by ":" to get the time independently
+            new_date = datetime(int(split_date[3]), strptime(split_date[2], '%b').tm_mon, \
+                int(split_date[1]), int(split_time[0]), int(split_time[1]), int(split_time[2]))
+            #set the date and time of the most recenly modified URL
+            if newest_update[1] < new_date:
+                newest_update = (url_from_frontier, new_date)
+            #set the date and time of the oldest modification
+            if oldest_update[1] > new_date:
+                oldest_update = (url_from_frontier, new_date)
 
         #get the subdomain of the url
         url_from_frontier_parsed = urlparse(url_from_frontier)              #parse the url
@@ -209,6 +251,9 @@ def extract_next_links(rawDatas):
         else:
             subdomain = subdomain[1]                            #get the subdomain
 
+        if subdomain not in urls_by_subdomain:
+            urls_by_subdomain[subdomain] = set()
+
         soup = BeautifulSoup(url_object.content, "lxml")                      #crawl the content of the downloaded web page
         num_links = 0                                           #count the number of links in this web page
         for link in soup.findAll('a'):                          #get all links
@@ -217,7 +262,10 @@ def extract_next_links(rawDatas):
             if is_valid(new_link, False):                       #save only valid urls (increment the counter of retrieved link only if the given link is valid)
                 num_urls_retrieved += 1                              #increment the counter of the retrieved links
                 num_links += 1
-                urls_by_subdomain[subdomain].append(new_link)
+                #remove the last char if it is slash sign ("/")
+                if new_link[-1] == '/':
+                    new_link = new_link[:-1]
+                urls_by_subdomain[subdomain].add(new_link)
                 outputLinks.append(new_link)                        #insert a link in the absolute form to the outputLinks list
 
                 #for debugging purposes include the web page url
@@ -271,8 +319,8 @@ def is_valid(url, frontier = True):
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv" \
             + "|rm|smil|wmv|swf|wma|zip|rar|gz" \
-            + "|php|php.*|java|h5|ss|ppsx)$", parsed.path.lower()) \
-            and not re.match(".*(contact/student-affairs|\~irus.*css|\~irus.*bart).*", parsed.path.lower()) \
+            + "|php|php.*|java.*|h5|ss|ppsx|diff|cgi|ps\.Z|jemdoc|db|lif|war|ppsx|scm)$", parsed.path.lower()) \
+            and not re.match(".*(/contact/student-affairs/|/\~irus.*css|\~irus.*bart|/\~pazzani/Slides/|/\~javid/).*", parsed.path.lower()) \
             and not re.match(".*@.*", parsed.path.lower()) \
             and not re.match("^htt.*(http:/|https:/).*$", url) \
             and not re.match(".*(calendar|ganglia|archive|mlphysics|seraja).*", parsed.hostname) \
